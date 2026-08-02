@@ -37,7 +37,7 @@ class WorkoutManager: ObservableObject {
     /// 下一动作预览（休息遮罩用）；最后一个动作时为 nil
     var nextExercise: Exercise? {
         guard let exs = currentDay?.exercises, exerciseIndex + 1 < exs.count else { return nil }
-        return exs?[exerciseIndex + 1]
+        return exs[exerciseIndex + 1]
     }
 
     var totalSets: Int { currentDay?.totalSets ?? 0 }
