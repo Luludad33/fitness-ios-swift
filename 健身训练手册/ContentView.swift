@@ -44,7 +44,7 @@ struct ContentView: View {
 struct SectionCard<Content: View>: View {
     let title: String
     let icon: String
-    @ViewBuilder let content: Content
+    @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
