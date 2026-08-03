@@ -47,38 +47,40 @@ struct LibraryView: View {
     }
 
     private var stretchSections: some View {
-        ForEach(["下肢", "上肢与躯干"], id: \.self) { group in
-            Section(group) {
-                ForEach(TrainingData.stretches.filter { $0.group == group }) { s in
-                    NavigationLink {
-                        StretchDetailView(stretch: s)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(s.name)
-                                .font(.subheadline.weight(.medium))
-                            Text(s.target)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+        Group {
+            ForEach(["下肢", "上肢与躯干"], id: \.self) { group in
+                Section(group) {
+                    ForEach(TrainingData.stretches.filter { $0.group == group }) { s in
+                        NavigationLink {
+                            StretchDetailView(stretch: s)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(s.name)
+                                    .font(.subheadline.weight(.medium))
+                                Text(s.target)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }
-        }
 
-        Section("练后拉伸速查") {
-            ForEach(TrainingData.stretchTable, id: \.day) { row in
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(row.day)
-                        .font(.subheadline.weight(.semibold))
-                    Text(row.part)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(row.move)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            Section("练后拉伸速查") {
+                ForEach(TrainingData.stretchTable, id: \.day) { row in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.day)
+                            .font(.subheadline.weight(.semibold))
+                        Text(row.part)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(row.move)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
             }
         }
     }

@@ -529,7 +529,7 @@ class WorkoutManager: ObservableObject {
     var totalWorkouts: Int { allRecords().count }
 
     /// Epley 公式估算 1RM：w × (1 + r/30)
-    static func epley(_ w: Double, _ r: Int) -> Double {
+    nonisolated static func epley(_ w: Double, _ r: Int) -> Double {
         w * (1 + Double(max(1, r)) / 30)
     }
 
