@@ -5,6 +5,7 @@ import Foundation
 struct Exercise: Identifiable, Codable, Hashable {
     let id: String          // 英文资源名，如 "dumbbell_press"
     let name: String        // 哑铃卧推
+    let en: String          // 英文名，如 "Dumbbell Bench Press"
     let muscles: String     // 目标肌群
     let equipment: String   // 器械
     let sets: Int           // 建议组数
@@ -47,6 +48,25 @@ struct StretchMove: Identifiable, Codable, Hashable {
     let target: String      // 拉伸部位
     let group: String       // 下肢 / 上肢与躯干
     let how: [String]       // 做法要点
+}
+
+// MARK: - 身体数据（体重 / 围度）
+
+struct WeightEntry: Codable, Identifiable, Hashable {
+    var id: String { date }
+    let date: String        // yyyy-MM-dd
+    let kg: Double
+}
+
+struct MeasurementEntry: Codable, Identifiable, Hashable {
+    var id: String { date }
+    let date: String        // yyyy-MM-dd
+    var chest: Double?      // 胸围 cm
+    var waist: Double?      // 腰围
+    var arm: Double?        // 臂围
+    var thigh: Double?      // 腿围
+    var shoulder: Double?   // 肩宽
+    var neck: Double?       // 颈围
 }
 
 // MARK: - 训练记录

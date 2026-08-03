@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 根视图：三个 Tab（训练 / 图鉴 / 记录）+ 训练进行时全屏覆盖层（同护眼项目 ZStack 叠层思路）
+/// 根视图：五个 Tab（训练 / 图鉴 / 数据 / 记录 / 我的）+ 训练进行时全屏覆盖层（同护眼项目 ZStack 叠层思路）
 struct ContentView: View {
     @EnvironmentObject var wm: WorkoutManager
     @State private var tab = 0
@@ -18,9 +18,15 @@ struct ContentView: View {
                 LibraryView()
                     .tabItem { Label("图鉴", systemImage: "book.fill") }
                     .tag(1)
+                DataView()
+                    .tabItem { Label("数据", systemImage: "chart.xyaxis.line") }
+                    .tag(2)
                 RecordsView()
                     .tabItem { Label("记录", systemImage: "chart.bar.fill") }
-                    .tag(2)
+                    .tag(3)
+                ProfileView()
+                    .tabItem { Label("我的", systemImage: "person.fill") }
+                    .tag(4)
             }
 
             // 训练流程全屏页（含 finished 庆祝页）

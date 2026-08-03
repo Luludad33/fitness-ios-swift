@@ -25,6 +25,17 @@ class WorkoutManager: ObservableObject {
     @Published var lastRecord: DayRecord?        // 最近一次完成的记录（庆祝页用）
     @Published var sessionStart: Date?
 
+    // MARK: - 身体数据与设置（数据 Tab / 我的 Tab 用）
+
+    @Published var profileName: String {        // 用户名（默认「训练者」）
+        didSet { defaults.set(profileName, forKey: "fit_profileName") }
+    }
+    @Published var nextDayId: String {          // 下一个训练日（push/pull/legs）
+        didSet { defaults.set(nextDayId, forKey: "fit_nextDay") }
+    }
+    @Published var weights: [WeightEntry] = []          // 体重记录（按日期升序）
+    @Published var measurements: [MeasurementEntry] = [] // 围度记录（按日期升序）
+
     var currentDay: WorkoutDay? {
         TrainingData.days.first { $0.id == currentDayId }
     }
@@ -68,6 +79,16 @@ class WorkoutManager: ObservableObject {
         darkMode = defaults.bool(forKey: "fitDarkMode")
         let savedRest = defaults.integer(forKey: "fitRestSeconds")
         if savedRest > 0 { restSeconds = savedRest }
+        profileName = defaults.string(forKey: "fit_profileName") ?? "训练者"
+        nextDayId = defaults.string(forKey: "fit_nextDay") ?? "push"
+        if let data = defaults.data(forKey: "fit_weights"),
+           let list = try? JSONDecoder().decode([WeightEntry].self, from: data) {
+            weights = list
+        }
+        if let data = defaults.data(forKey: "fit_meas"),
+           let list = try? JSONDecoder().decode([MeasurementEntry].self, from: data) {
+            measurements = list
+        }
         loadSession()
     }
 
@@ -166,6 +187,64 @@ class WorkoutManager: ObservableObject {
         defaults.set(restSeconds, forKey: "fitRestSeconds")
     }
 
+    // MARK: - 身体数据（体重 / 围度）
+
+    func addWeight(kg: Double, date: String) {
+        weights.removeAll { $0.date == date }
+        weights.append(WeightEntry(date: date, kg: kg))
+        weights.sort { $0.date < $1.date }
+        if weights.count > 400 { weights = Array(weights.suffix(400)) }
+        saveBodyData()
+    }
+
+    func addMeasurement(_ m: MeasurementEntry) {
+        measurements.removeAll { $0.date == m.date }
+        measurements.append(m)
+        measurements.sort { $0.date < $1.date }
+        saveBodyData()
+    }
+
+    private func saveBodyData() {
+        if let data = try? JSONEncoder().encode(weights) {
+            defaults.set(data, forKey: "fit_weights")
+        }
+        if let data = try? JSONEncoder().encode(measurements) {
+            defaults.set(data, forKey: "fit_meas")
+        }
+    }
+
+    // MARK: - 训练前 Checklist（按日期持久化）
+
+    func checkedChecklistItems(on date: String) -> Set<Int> {
+        guard let data = defaults.data(forKey: "fit_checklist_\(date)"),
+              let list = try? JSONDecoder().decode([Int].self, from: data) else { return [] }
+        return Set(list)
+    }
+
+    func setChecklistItem(_ index: Int, checked: Bool, on date: String) {
+        var set = checkedChecklistItems(on: date)
+        if checked { set.insert(index) } else { set.remove(index) }
+        if let data = try? JSONEncoder().encode(set.sorted()) {
+            defaults.set(data, forKey: "fit_checklist_\(date)")
+        }
+    }
+
+    // MARK: - 下一个训练日（推→拉→腿 循环）
+
+    func advanceNextDay(from dayId: String?) {
+        let order = ["push", "pull", "legs"]
+        guard let dayId, let idx = order.firstIndex(of: dayId) else {
+            nextDayId = "push"
+            return
+        }
+        nextDayId = order[(idx + 1) % order.count]
+    }
+
+    func setNextDay(_ id: String) {
+        guard TrainingData.days.contains(where: { $0.id == id }) else { return }
+        nextDayId = id
+    }
+
     /// 放弃训练（回到选训练日）
     func abandonWorkout() {
         stopTicking()
@@ -229,6 +308,7 @@ class WorkoutManager: ObservableObject {
         )
         appendRecord(record)
         lastRecord = record
+        advanceNextDay(from: currentDayId)   // 练完自动推进 推→拉→腿
         phase = .finished
         clearSession()
         endLiveActivity()
@@ -403,6 +483,264 @@ class WorkoutManager: ObservableObject {
             all.append(contentsOf: records(on: fmt.string(from: day), defaults: defaults))
         }
         return all
+    }
+
+    /// 全量记录（扫描所有 fit_records_ key，PR/导出/连续天数用）
+    func allRecords() -> [DayRecord] {
+        var all: [DayRecord] = []
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("fit_records_") }
+        for key in keys {
+            guard let data = defaults.data(forKey: key),
+                  let list = try? JSONDecoder().decode([DayRecord].self, from: data) else { continue }
+            all.append(contentsOf: list)
+        }
+        return all.sorted { $0.startTime > $1.startTime }
+    }
+
+    // MARK: - 统计（连续天数 / 本周 / PR / 容量）
+
+    /// 连续训练天数（今天没练则从昨天起算）
+    var streakCount: Int {
+        let fmt = Self.dayFormatter()
+        let days = Set(allRecords().map { $0.date })
+        var d = Date()
+        if !days.contains(fmt.string(from: d)) {
+            d = Calendar.current.date(byAdding: .day, value: -1, to: d) ?? d
+        }
+        var count = 0
+        while days.contains(fmt.string(from: d)) {
+            count += 1
+            d = Calendar.current.date(byAdding: .day, value: -1, to: d) ?? d
+        }
+        return count
+    }
+
+    /// 本周训练次数（周一起算）
+    var weekCount: Int {
+        let fmt = Self.dayFormatter()
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: Date())   // 1=周日 … 7=周六
+        let daysSinceMonday = (weekday + 5) % 7               // 周一=0
+        guard let monday = cal.date(byAdding: .day, value: -daysSinceMonday, to: Date()) else { return 0 }
+        let mondayStr = fmt.string(from: monday)
+        return allRecords().filter { $0.date >= mondayStr }.count
+    }
+
+    var totalWorkouts: Int { allRecords().count }
+
+    /// Epley 公式估算 1RM：w × (1 + r/30)
+    static func epley(_ w: Double, _ r: Int) -> Double {
+        w * (1 + Double(max(1, r)) / 30)
+    }
+
+    /// 个人纪录条目（按估算 1RM 降序）
+    struct PRRecord: Identifiable {
+        let exercise: Exercise
+        let weightKg: Double
+        let reps: Int
+        let date: String
+        var id: String { exercise.id }
+        var oneRM: Int { Int(WorkoutManager.epley(weightKg, reps).rounded()) }
+    }
+
+    var prs: [PRRecord] {
+        var best: [String: (w: Double, r: Int, date: String)] = [:]
+        for rec in allRecords() {
+            for entry in rec.entries {
+                for set in entry.sets {
+                    guard let w = set.weightKg, w > 0 else { continue }
+                    let r = max(1, set.reps)
+                    let score = Self.epley(w, r)
+                    if let cur = best[entry.exerciseId] {
+                        if score > Self.epley(cur.w, max(1, cur.r)) {
+                            best[entry.exerciseId] = (w, r, rec.date)
+                        }
+                    } else {
+                        best[entry.exerciseId] = (w, r, rec.date)
+                    }
+                }
+            }
+        }
+        return best.compactMap { id, v in
+            guard let ex = TrainingData.exerciseMap[id] else { return nil }
+            return PRRecord(exercise: ex, weightKg: v.w, reps: v.r, date: v.date)
+        }
+        .sorted { Self.epley($0.weightKg, $0.reps) > Self.epley($1.weightKg, $1.reps) }
+    }
+
+    /// 某动作历史最佳组（Epley 分数最高），训练录入时预填重量
+    func bestSet(for exerciseId: String) -> SetLog? {
+        var best: SetLog?
+        var bestScore: Double = 0
+        for rec in allRecords() {
+            for entry in rec.entries where entry.exerciseId == exerciseId {
+                for set in entry.sets {
+                    guard let w = set.weightKg, w > 0 else { continue }
+                    let score = Self.epley(w, set.reps)
+                    if score > bestScore {
+                        bestScore = score
+                        best = set
+                    }
+                }
+            }
+        }
+        return best
+    }
+
+    /// 训练总容量（Σ 重量×次数）
+    static func volume(of record: DayRecord) -> Int {
+        Int(record.entries.reduce(0.0) { acc, e in
+            acc + e.sets.reduce(0.0) { $0 + (($1.weightKg ?? 0) * Double($1.reps)) }
+        }.rounded())
+    }
+
+    // MARK: - 备份（导出 / 导入 / 清空）
+
+    /// iOS 自身备份格式
+    private struct BackupPackage: Codable {
+        var profileName: String
+        var nextDayId: String
+        var weights: [WeightEntry]
+        var measurements: [MeasurementEntry]
+        var records: [DayRecord]
+        var checklist: [String: [Int]]
+    }
+
+    /// ballast.v1（压舱石 PWA）备份格式
+    private struct BallastBackup: Codable {
+        struct Profile: Codable { var name: String? }
+        struct WeightItem: Codable { var d: String; var kg: Double }
+        struct MeasItem: Codable {
+            var d: String
+            var chest: Double?; var waist: Double?; var arm: Double?
+            var thigh: Double?; var shoulder: Double?; var neck: Double?
+        }
+        struct Workout: Codable {
+            var date: String
+            var day: String
+            var exercises: [ExerciseItem]?
+        }
+        struct ExerciseItem: Codable {
+            var id: String
+            var sets: [SetItem]?
+        }
+        struct SetItem: Codable {
+            var w: Double?
+            var r: Int?
+            var done: Bool?
+        }
+        var profile: Profile?
+        var nextDay: String?
+        var weight: [WeightItem]?
+        var meas: [MeasItem]?
+        var workouts: [Workout]?
+    }
+
+    /// 导出为 JSON 字符串（iOS 自身格式）
+    func exportJSON() -> String {
+        var checklist: [String: [Int]] = [:]
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("fit_checklist_") }
+        for key in keys {
+            let date = String(key.dropFirst("fit_checklist_".count))
+            checklist[date] = checkedChecklistItems(on: date).sorted()
+        }
+        let pkg = BackupPackage(
+            profileName: profileName,
+            nextDayId: nextDayId,
+            weights: weights,
+            measurements: measurements,
+            records: allRecords(),
+            checklist: checklist
+        )
+        guard let data = try? JSONEncoder().encode(pkg) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    /// 导入备份：先试 iOS 格式，再试 ballast.v1 格式
+    @discardableResult
+    func importJSON(_ text: String) -> Bool {
+        guard let data = text.data(using: .utf8) else { return false }
+
+        // 1) iOS 自身格式
+        if let pkg = try? JSONDecoder().decode(BackupPackage.self, from: data) {
+            profileName = pkg.profileName
+            setNextDay(pkg.nextDayId)
+            weights = pkg.weights
+            measurements = pkg.measurements
+            saveBodyData()
+            for (date, _) in pkg.checklist {
+                defaults.removeObject(forKey: "fit_checklist_\(date)")
+            }
+            for rec in pkg.records {
+                if let d = try? JSONEncoder().encode([rec]) {
+                    defaults.set(d, forKey: "fit_records_\(rec.date)")
+                }
+            }
+            return true
+        }
+
+        // 2) ballast.v1（压舱石 PWA）格式
+        guard let raw = try? JSONDecoder().decode(BallastBackup.self, from: data) else { return false }
+        if let name = raw.profile?.name, !name.isEmpty { profileName = name }
+        if let nd = raw.nextDay, TrainingData.days.contains(where: { $0.id == nd }) { setNextDay(nd) }
+        weights = (raw.weight ?? []).map { WeightEntry(date: $0.d, kg: $0.kg) }
+        measurements = (raw.meas ?? []).map { m in
+            MeasurementEntry(date: m.d, chest: m.chest, waist: m.waist, arm: m.arm,
+                             thigh: m.thigh, shoulder: m.shoulder, neck: m.neck)
+        }
+        saveBodyData()
+        for w in raw.workouts ?? [] {
+            var entries: [ExerciseLog] = []
+            for e in w.exercises ?? [] {
+                let iosId = TrainingData.ballastExerciseMap[e.id]
+                    ?? (TrainingData.exerciseMap[e.id] != nil ? e.id : nil)
+                guard let iosId else { continue }
+                var sets: [SetLog] = []
+                for s in e.sets ?? [] where s.done == true {
+                    guard let reps = s.r, reps > 0 else { continue }
+                    let wKg = s.w ?? 0
+                    sets.append(SetLog(weightKg: wKg > 0 ? wKg : nil, reps: reps))
+                }
+                if !sets.isEmpty {
+                    entries.append(ExerciseLog(exerciseId: iosId, sets: sets))
+                }
+            }
+            guard !entries.isEmpty else { continue }
+            let start = Self.noonTimestamp(of: w.date) ?? Date().timeIntervalSince1970
+            let rec = DayRecord(date: w.date, dayId: w.day, startTime: start,
+                                durationSeconds: 0, entries: entries)
+            if let d = try? JSONEncoder().encode([rec]) {
+                defaults.set(d, forKey: "fit_records_\(rec.date)")
+            }
+        }
+        return true
+    }
+
+    /// 清空所有数据（含记录、体重、围度、设置）
+    func clearAllData() {
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("fit") }
+        for key in keys { defaults.removeObject(forKey: key) }
+        abandonWorkout()
+        profileName = "训练者"
+        setNextDay("push")
+        weights = []
+        measurements = []
+        darkMode = false
+        restSeconds = 75
+    }
+
+    private static func noonTimestamp(of date: String) -> TimeInterval? {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        guard let d = f.date(from: date) else { return nil }
+        return d.addingTimeInterval(12 * 3600).timeIntervalSince1970
+    }
+
+    private static func dayFormatter() -> DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
     }
 
     private var todayKey: String {

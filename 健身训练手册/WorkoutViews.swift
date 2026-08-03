@@ -10,23 +10,12 @@ struct DaySelectionView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    ForEach(TrainingData.days) { day in
-                        DayCard(day: day) {
-                            showChecklistFor = day
-                        }
-                    }
+                    greetingHeader
+                    streakCard
 
-                    SectionCard(title: "通用训练原则", icon: "lightbulb.fill") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(TrainingData.principles, id: \.title) { p in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("\(p.emoji) \(p.title)")
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(p.text)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                    ForEach(TrainingData.days) { day in
+                        DayCard(day: day, isNext: day.id == wm.nextDayId) {
+                            showChecklistFor = day
                         }
                     }
                 }
@@ -50,10 +39,70 @@ struct DaySelectionView: View {
             }
         }
     }
+
+    // MARK: - 问候语（今天日期 + 时段问候 + 昵称）
+
+    private var greetingHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(dateLine)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("\(greetingText)，\(wm.profileName) · 该训练了")
+                .font(.title2.weight(.bold))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - 连续天数 + 本周 + 快览（体重）
+
+    private var streakCard: some View {
+        HStack(spacing: 12) {
+            Text("🔥")
+                .font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(wm.streakCount) 天连续训练")
+                    .font(.headline)
+                Text("本周 \(wm.weekCount) 次 · 累计 \(wm.totalWorkouts) 次")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(latestWeightText)
+                    .font(.headline.monospacedDigit())
+                Text("体重 kg")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+    }
+
+    private var latestWeightText: String {
+        guard let last = wm.weights.last else { return "--" }
+        return DataView.fmt(last.kg)
+    }
+
+    private var dateLine: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日 · EEEE"
+        return f.string(from: Date())
+    }
+
+    private var greetingText: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour < 11 { return "早上好" }
+        if hour < 14 { return "中午好" }
+        if hour < 18 { return "下午好" }
+        return "晚上好"
+    }
 }
 
 struct DayCard: View {
     let day: WorkoutDay
+    let isNext: Bool
     let onStart: () -> Void
 
     var body: some View {
@@ -61,8 +110,18 @@ struct DayCard: View {
             HStack {
                 Text(day.emoji).font(.title2)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(day.name)
-                        .font(.title3.weight(.bold))
+                    HStack(spacing: 6) {
+                        Text(day.name)
+                            .font(.title3.weight(.bold))
+                        if isNext {
+                            Text("今天练这个")
+                                .font(.caption2.weight(.bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.orange, in: .capsule)
+                        }
+                    }
                     Text(day.subtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -111,15 +170,25 @@ struct DayCard: View {
         }
         .padding(16)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(isNext ? Color.orange.opacity(0.6) : .clear, lineWidth: 1.5)
+        )
     }
 }
 
-/// 训练前 Checklist（文档原文 8 项）
+/// 训练前 Checklist（文档原文 8 项，勾选按日期持久化）
 struct ChecklistSheet: View {
     let day: WorkoutDay
     @EnvironmentObject var wm: WorkoutManager
     @Environment(\.dismiss) private var dismiss
     @State private var checked: Set<Int> = []
+
+    private var todayStr: String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
 
     var body: some View {
         NavigationStack {
@@ -127,7 +196,9 @@ struct ChecklistSheet: View {
                 Section {
                     ForEach(Array(TrainingData.preWorkoutChecklist.enumerated()), id: \.offset) { i, item in
                         Button {
-                            if checked.contains(i) { checked.remove(i) } else { checked.insert(i) }
+                            let isChecked = checked.contains(i)
+                            if isChecked { checked.remove(i) } else { checked.insert(i) }
+                            wm.setChecklistItem(i, checked: !isChecked, on: todayStr)
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: checked.contains(i) ? "checkmark.circle.fill" : "circle")
@@ -145,6 +216,7 @@ struct ChecklistSheet: View {
             }
             .navigationTitle("\(day.emoji) \(day.name) · 练前检查")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { checked = wm.checkedChecklistItems(on: todayStr) }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -397,7 +469,12 @@ struct WorkoutFlowView: View {
         let nums = Self.numbers(in: exercise.repRange)
         let def = nums.isEmpty ? 10 : nums.reduce(0, +) / nums.count
         repsText = String(def)
-        weightText = ""
+        // 用历史最佳组（Epley 分数最高）预填重量
+        if let best = wm.bestSet(for: exercise.id), let w = best.weightKg {
+            weightText = DataView.fmt(w)
+        } else {
+            weightText = ""
+        }
         showDetails = false
     }
 
@@ -522,6 +599,10 @@ struct WorkoutFinishedView: View {
                                 statItem("\(record.durationSeconds / 60) 分钟", label: "总时长")
                                 statItem("\(record.totalSets) 组", label: "完成组数")
                             }
+
+                            Text("🔥 连续训练 \(wm.streakCount) 天")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(.orange)
                         }
 
                         if let dayId = wm.lastRecord?.dayId,

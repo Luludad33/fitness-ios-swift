@@ -3,15 +3,17 @@ import SwiftUI
 // MARK: - 图鉴 Tab
 
 struct LibraryView: View {
-    @State private var category = 0   // 0 力量 / 1 拉伸
+    @State private var category = 0   // 0 力量 / 1 拉伸 / 2 原则
 
     var body: some View {
         NavigationStack {
             List {
                 if category == 0 {
                     strengthSections
-                } else {
+                } else if category == 1 {
                     stretchSections
+                } else {
+                    principlesSections
                 }
             }
             .listStyle(.insetGrouped)
@@ -21,9 +23,10 @@ struct LibraryView: View {
                     Picker("", selection: $category) {
                         Text("力量 12").tag(0)
                         Text("拉伸 10").tag(1)
+                        Text("原则 4").tag(2)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 180)
+                    .frame(width: 250)
                 }
             }
         }
@@ -60,6 +63,37 @@ struct LibraryView: View {
                         .padding(.vertical, 2)
                     }
                 }
+            }
+        }
+
+        Section("练后拉伸速查") {
+            ForEach(TrainingData.stretchTable, id: \.day) { row in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.day)
+                        .font(.subheadline.weight(.semibold))
+                    Text(row.part)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(row.move)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private var principlesSections: some View {
+        Section("通用训练原则") {
+            ForEach(TrainingData.principles, id: \.title) { p in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(p.emoji) \(p.title)")
+                        .font(.subheadline.weight(.semibold))
+                    Text(p.text)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
             }
         }
     }
@@ -117,6 +151,7 @@ struct ExerciseDetailView: View {
 
                 // 基本信息
                 VStack(alignment: .leading, spacing: 8) {
+                    infoRow("🇬🇧 英文名", exercise.en)
                     infoRow("🎯 目标肌群", exercise.muscles)
                     infoRow("🏋️ 器械", exercise.equipment)
                     infoRow("📊 建议", "\(exercise.sets) 组 × \(exercise.repRange) 次")

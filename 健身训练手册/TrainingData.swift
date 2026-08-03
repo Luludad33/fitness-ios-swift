@@ -48,6 +48,7 @@ enum TrainingData {
         Exercise(
             id: "dumbbell_press",
             name: "哑铃卧推",
+            en: "Dumbbell Bench Press",
             muscles: "胸大肌（整体）、三角肌前束、肱三头肌",
             equipment: "哑铃 + 平板卧推凳",
             sets: 4,
@@ -77,6 +78,7 @@ enum TrainingData {
         Exercise(
             id: "shoulder_press",
             name: "坐姿哑铃肩推",
+            en: "Seated DB Shoulder Press",
             muscles: "三角肌（前束+中束）、斜方肌上部、肱三头肌",
             equipment: "哑铃 + 直背凳（有靠背）",
             sets: 3,
@@ -105,6 +107,7 @@ enum TrainingData {
         Exercise(
             id: "incline_fly",
             name: "上斜哑铃飞鸟",
+            en: "Incline DB Fly",
             muscles: "上胸肌、三角肌前束",
             equipment: "哑铃 + 可调角度卧推凳（30°–45°）",
             sets: 3,
@@ -135,6 +138,7 @@ enum TrainingData {
         Exercise(
             id: "tricep_pushdown",
             name: "绳索三头下压",
+            en: "Cable Triceps Pushdown",
             muscles: "肱三头肌（外侧头+长头）",
             equipment: "龙门架 + 直杆 / V 形把手 / 绳索",
             sets: 3,
@@ -167,6 +171,7 @@ enum TrainingData {
         Exercise(
             id: "bent_over_row",
             name: "杠铃俯身划船",
+            en: "Barbell Bent-over Row",
             muscles: "背阔肌、菱形肌、斜方肌中下部、肱二头肌",
             equipment: "杠铃",
             sets: 4,
@@ -197,6 +202,7 @@ enum TrainingData {
         Exercise(
             id: "lat_pulldown",
             name: "高位下拉",
+            en: "Lat Pulldown",
             muscles: "背阔肌（宽度）、大圆肌、肱二头肌",
             equipment: "高位下拉机",
             sets: 4,
@@ -227,6 +233,7 @@ enum TrainingData {
         Exercise(
             id: "seated_row",
             name: "坐姿绳索划船",
+            en: "Seated Cable Row",
             muscles: "中背（菱形肌、斜方肌中下部）、背阔肌、肱二头肌",
             equipment: "坐姿划船机 / 龙门架 + V 形把手",
             sets: 3,
@@ -257,6 +264,7 @@ enum TrainingData {
         Exercise(
             id: "bicep_curl",
             name: "哑铃二头弯举",
+            en: "DB Biceps Curl",
             muscles: "肱二头肌、肱肌",
             equipment: "哑铃",
             sets: 3,
@@ -289,6 +297,7 @@ enum TrainingData {
         Exercise(
             id: "squat",
             name: "杠铃深蹲",
+            en: "Barbell Back Squat",
             muscles: "股四头肌、臀大肌、腘绳肌、核心",
             equipment: "杠铃 + 深蹲架",
             sets: 4,
@@ -320,6 +329,7 @@ enum TrainingData {
         Exercise(
             id: "romanian_deadlift",
             name: "罗马尼亚硬拉",
+            en: "Romanian Deadlift",
             muscles: "腘绳肌、臀大肌、下背竖脊肌",
             equipment: "哑铃（也可用杠铃）",
             sets: 3,
@@ -352,6 +362,7 @@ enum TrainingData {
         Exercise(
             id: "leg_press",
             name: "腿举机（倒蹬）",
+            en: "Leg Press",
             muscles: "股四头肌、臀大肌、腘绳肌",
             equipment: "腿举机（倒蹬机）",
             sets: 3,
@@ -381,6 +392,7 @@ enum TrainingData {
         Exercise(
             id: "bulgarian_split_squat",
             name: "保加利亚分腿蹲",
+            en: "Bulgarian Split Squat",
             muscles: "股四头肌、臀大肌、腘绳肌（单腿侧重）",
             equipment: "哑铃（或徒手）+ 矮凳/踏板",
             sets: 3,
@@ -588,5 +600,38 @@ enum TrainingData {
         "动作质量 > 重量，宁轻勿假",
         "甩甩手臂，放松肩颈",
         "感受刚才那组目标肌肉的泵感",
+    ]
+
+    // MARK: - 身体围度项（数据 Tab 用）
+
+    static let measParts: [(key: String, name: String)] = [
+        ("chest", "胸围"), ("waist", "腰围"), ("arm", "臂围"),
+        ("thigh", "腿围"), ("shoulder", "肩宽"), ("neck", "颈围"),
+    ]
+
+    // MARK: - 练后拉伸速查表（图鉴「拉伸」段用）
+
+    static let stretchTable: [(day: String, part: String, move: String)] = [
+        ("推日后", "胸 · 肩前侧 · 三头", "胸肌门框拉伸 + 肩环绕 + 三头拉伸"),
+        ("拉日后", "背 · 二头 · 颈肩", "背阔肌拉伸 + 上背菱形肌拉伸 + 二头拉伸"),
+        ("腿日后", "股四头 · 腘绳肌 · 臀 · 髋屈肌", "股四头 + 腘绳肌 + 4字臀 + 髋屈肌"),
+    ]
+
+    // MARK: - PWA（压舱石 ballast）动作 ID → iOS 动作 ID 映射
+    // 导入 ballast.v1 备份时用；映射不到的动作跳过
+
+    static let ballastExerciseMap: [String: String] = [
+        "db-bench": "dumbbell_press",
+        "db-press": "shoulder_press",
+        "incline-fly": "incline_fly",
+        "tri-push": "tricep_pushdown",
+        "bb-row": "bent_over_row",
+        "pulldown": "lat_pulldown",
+        "cable-row": "seated_row",
+        "db-curl": "bicep_curl",
+        "squat": "squat",
+        "rdl": "romanian_deadlift",
+        "legpress": "leg_press",
+        "bulgarian": "bulgarian_split_squat",
     ]
 }

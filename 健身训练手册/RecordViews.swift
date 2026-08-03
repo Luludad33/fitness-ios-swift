@@ -139,6 +139,15 @@ struct RecordRow: View {
                             }
                         }
                     }
+                    HStack {
+                        Text("总容量")
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        Text("\(WorkoutManager.volume(of: record)) kg")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.top, 4)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
