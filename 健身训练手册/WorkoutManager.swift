@@ -27,10 +27,10 @@ class WorkoutManager: ObservableObject {
 
     // MARK: - 身体数据与设置（数据 Tab / 我的 Tab 用）
 
-    @Published var profileName: String {        // 用户名（默认「训练者」）
+    @Published var profileName: String = "训练者" {       // 用户名
         didSet { defaults.set(profileName, forKey: "fit_profileName") }
     }
-    @Published var nextDayId: String {          // 下一个训练日（push/pull/legs）
+    @Published var nextDayId: String = "push" {         // 下一个训练日（push/pull/legs）
         didSet { defaults.set(nextDayId, forKey: "fit_nextDay") }
     }
     @Published var weights: [WeightEntry] = []          // 体重记录（按日期升序）
