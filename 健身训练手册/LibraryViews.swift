@@ -132,9 +132,12 @@ struct ExerciseDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // 头图
+                // 头图（有动图播动图，否则静态图，再无则占位符）
                 Group {
-                    if let imageName = exercise.imageName {
+                    if bundleHasGIF(named: exercise.id) {
+                        GIFView(gifName: exercise.id)
+                            .frame(height: 220)
+                    } else if let imageName = exercise.imageName {
                         Image(imageName)
                             .resizable()
                             .scaledToFit()
@@ -236,6 +239,23 @@ struct ExerciseDetailView: View {
     }
 }
 
+/// 图解弹层：训练流程中复用动作详情页（动图 + 步骤 + 要领 + 常见错误 + 呼吸）
+struct ExerciseDetailSheet: View {
+    let exercise: Exercise
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ExerciseDetailView(exercise: exercise)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("关闭") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
 // MARK: - 拉伸动作详情
 
 struct StretchDetailView: View {
@@ -244,6 +264,13 @@ struct StretchDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if bundleHasGIF(named: stretch.id) {
+                    GIFView(gifName: stretch.id)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .clipShape(.rect(cornerRadius: 16))
+                }
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text("🧘 拉伸部位")
                         .font(.caption.weight(.semibold))

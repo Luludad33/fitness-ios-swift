@@ -242,6 +242,7 @@ struct WorkoutFlowView: View {
     @State private var weightText = ""
     @State private var showAbandonConfirm = false
     @State private var showDetails = false
+    @State private var showExerciseDetail = false   // 训练图解弹层
 
     var body: some View {
         Group {
@@ -308,22 +309,35 @@ struct WorkoutFlowView: View {
                             .tint(.blue)
                     }
 
-                    // 动作卡片
+                    // 动作卡片（点头部看完整图解 / 动图）
                     VStack(spacing: 12) {
-                        HStack(spacing: 14) {
-                            ExerciseThumb(exercise: exercise, size: 88)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(exercise.name)
-                                    .font(.title2.weight(.bold))
-                                Text(exercise.muscles)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("目标：\(exercise.sets) 组 × \(exercise.repRange) 次")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundColor(.blue)
+                        Button {
+                            showExerciseDetail = true
+                        } label: {
+                            HStack(spacing: 14) {
+                                ExerciseThumb(exercise: exercise, size: 88)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(exercise.name)
+                                        .font(.title2.weight(.bold))
+                                    Text(exercise.muscles)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("目标：\(exercise.sets) 组 × \(exercise.repRange) 次")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundColor(.blue)
+                                }
+                                Spacer()
+                                VStack(spacing: 3) {
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.title3)
+                                    Text(bundleHasGIF(named: exercise.id) ? "动图" : "图解")
+                                        .font(.caption2)
+                                }
+                                .foregroundColor(.blue)
                             }
-                            Spacer()
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
 
                         DisclosureGroup(isExpanded: $showDetails) {
                             VStack(alignment: .leading, spacing: 12) {
@@ -420,6 +434,9 @@ struct WorkoutFlowView: View {
             Button("放弃训练", role: .destructive) { wm.abandonWorkout() }
             Button("继续练", role: .cancel) {}
         }
+        .sheet(isPresented: $showExerciseDetail) {
+            ExerciseDetailSheet(exercise: exercise)
+        }
     }
 
     private var repsValue: Int {
@@ -504,6 +521,7 @@ struct RestOverlayView: View {
     @EnvironmentObject var wm: WorkoutManager
     @State private var appear = false
     @State private var tipIndex = 0
+    @State private var showDetail = false   // 休息时看动作图解
 
     var body: some View {
         Color.black.opacity(0.35)
@@ -543,11 +561,24 @@ struct RestOverlayView: View {
                         .multilineTextAlignment(.center)
                         .frame(minHeight: 32)
 
-                    Button("跳过休息") {
-                        withAnimation(.easeOut(duration: 0.2)) { wm.skipRest() }
+                    HStack(spacing: 10) {
+                        Button("跳过休息") {
+                            withAnimation(.easeOut(duration: 0.2)) { wm.skipRest() }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+
+                        if let ex = wm.currentExercise {
+                            Button {
+                                showDetail = true
+                            } label: {
+                                Label(bundleHasGIF(named: ex.id) ? "看动图" : "看图解",
+                                      systemImage: "photo.on.rectangle.angled")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.blue)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.orange)
                 }
                 .padding(28)
                 .frame(maxWidth: 310)
@@ -560,6 +591,11 @@ struct RestOverlayView: View {
                 tipIndex = Int.random(in: 0..<TrainingData.restTips.count)
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     appear = true
+                }
+            }
+            .sheet(isPresented: $showDetail) {
+                if let ex = wm.currentExercise {
+                    ExerciseDetailSheet(exercise: ex)
                 }
             }
     }

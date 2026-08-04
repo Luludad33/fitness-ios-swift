@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-健身训练手册（FitCoach）— iOS 17+ SwiftUI 健身训练 App。数据源自飞书文档《健身动作图解与训练手册 V2.0》：三分化训练（推日/拉日/腿日）、12 个力量动作详解、10 个拉伸动作。功能：动作图鉴、跟练流程（组间休息倒计时）、训练记录统计、身体数据（体重趋势/围度/PR 个人纪录）、灵动岛/锁屏实况活动。数据侧功能（体重/围度/PR/连续天数/下一训练日/备份导出导入）源自压舱石 BALLAST PWA（`C:\Users\wty18\Desktop\ballast-fitness`），备份格式兼容其 ballast.v1。
+健身训练手册（FitCoach）— iOS 17+ SwiftUI 健身训练 App。数据源自飞书文档《健身动作图解与训练手册 V2.0》：三分化训练（推日/拉日/腿日）、12 个力量动作详解、10 个拉伸动作。功能：动作图鉴（含动作动图 GIF）、跟练流程（组间休息倒计时、训练中查看动作图解）、训练记录统计、身体数据（体重趋势/围度/PR 个人纪录）、灵动岛/锁屏实况活动。数据侧功能（体重/围度/PR/连续天数/下一训练日/备份导出导入）源自压舱石 BALLAST PWA（`C:\Users\wty18\Desktop\ballast-fitness`），备份格式兼容其 ballast.v1。动作动图 GIF 取自飞书文档。
 
 ## Build & Run
 
@@ -42,8 +42,9 @@ gen_sounds.js               — Node.js script that generates rest_start.wav / r
   App.swift                 — @main entry point, creates WorkoutManager environmentObject
   ContentView.swift         — Root view: TabView (训练/图鉴/数据/记录/我的) + session overlays; shared ExerciseThumb/SectionCard
   WorkoutViews.swift        — Training flow UI: DaySelectionView (greeting/streak/nextDay badge), ChecklistSheet,
-                              WorkoutFlowView (weight prefill from history), RestOverlayView, WorkoutFinishedView
-  LibraryViews.swift        — Exercise library: list (strength / stretches / principles) + detail views + stretch table
+                              WorkoutFlowView (weight prefill, tap card → 图解 sheet), RestOverlayView (看动图), WorkoutFinishedView
+  LibraryViews.swift        — Exercise library: list (strength / stretches / principles) + detail views (GIF header) +
+                              ExerciseDetailSheet (训练图解弹层) + stretch table
   DataViews.swift           — 数据 Tab: weight trend chart (Swift Charts), 6 measurements, PR list (Epley 1RM)
   ProfileViews.swift        — 我的 Tab: username, dark mode, next day, export/import/clear backup (ballast.v1 compatible)
   RecordViews.swift         — Workout history + weekly stats + total volume
@@ -53,9 +54,11 @@ gen_sounds.js               — Node.js script that generates rest_start.wav / r
   WorkoutManager.swift      — All business logic: workout state machine, notifications,
                               background/foreground handling, UserDefaults persistence, records,
                               body data (weights/measurements), streak/week/PR, backup export/import/clear
+  GIFView.swift             — GIF 播放组件（UIImageView 帧动画），bundleHasGIF(named:) 判断是否有动图
   FitnessAttributes.swift   — ActivityAttributes (SHARED with widget target via project.yml path)
   FitnessLiveActivityManager.swift — Live Activity singleton, 4s throttled updates
   Assets.xcassets/          — App icon + 11 exercise images (dumbbell_press.jpg … bulgarian_split_squat.jpg)
+  *.gif (squat.gif …)        — 12 个动作动图（取自飞书文档，文件名 = 动作 id），详情页/训练图解播放
   rest_start.wav / rest_end.wav / done.wav — notification sounds (generated)
   Info.plist                — Bundle config (zh_CN, portrait only, iOS 17+, NSSupportsLiveActivities)
 FitCoachWidget/
