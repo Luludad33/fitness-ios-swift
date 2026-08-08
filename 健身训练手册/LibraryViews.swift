@@ -168,66 +168,27 @@ struct ExerciseDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // 头图（有动图播动图，否则静态图，再无则占位符）；按原生宽高比自适应高度，完整显示不裁切
+                // 头图（动图 → 静态图 → 占位符），固定高度铺满屏宽，绝不溢出
                 DetailHeaderView(
                     gifName: bundleHasGIF(named: exercise.id) ? exercise.id : nil,
                     imageName: exercise.imageName,
                     placeholderIcon: "figure.strengthtraining.traditional"
                 )
 
-                // 基本信息（每行：小标签在上、数值在下，仿拉伸页布局避免裁切）
-                VStack(alignment: .leading, spacing: 12) {
-                    infoRow("🇬🇧 英文名", exercise.en)
-                    infoRow("🎯 目标肌群", exercise.muscles)
-                    infoRow("🏋️ 器械", exercise.equipment)
-                    infoRow("📊 建议", "\(exercise.sets) 组 × \(exercise.repRange) 次")
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.regularMaterial, in: .rect(cornerRadius: 14))
+                // 基本信息（标签在上、数值在下，仿拉伸页，天然不裁切）
+                infoCard
 
-                blockView("动作步骤", icon: "list.number") {
-                    ForEach(Array(exercise.steps.enumerated()), id: \.offset) { i, step in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("\(i + 1)")
-                                .font(.caption.weight(.bold))
-                                .foregroundColor(.white)
-                                .frame(width: 20, height: 20)
-                                .background(Color.blue, in: .circle)
-                            Text(step)
-                                .font(.subheadline)
-                        }
-                    }
-                }
+                // 动作步骤
+                numberedCard("动作步骤", icon: "list.number", items: exercise.steps)
 
-                blockView("动作要领", icon: "checkmark.seal") {
-                    ForEach(exercise.cues, id: \.self) { cue in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("✅").font(.caption)
-                            Text(cue).font(.subheadline)
-                        }
-                    }
-                }
+                // 动作要领
+                bulletCard("动作要领", icon: "checkmark.seal", items: exercise.cues, prefix: "✅")
 
-                blockView("常见错误", icon: "exclamationmark.triangle") {
-                    ForEach(exercise.mistakes, id: \.self) { m in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("❌").font(.caption)
-                            Text(m).font(.subheadline)
-                        }
-                    }
-                }
+                // 常见错误
+                bulletCard("常见错误", icon: "exclamationmark.triangle", items: exercise.mistakes, prefix: "❌")
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("呼吸方法", systemImage: "wind")
-                        .font(.headline)
-                    Text(exercise.breathing)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.cyan.opacity(0.1), in: .rect(cornerRadius: 14))
+                // 呼吸方法
+                breathingCard
             }
             .padding(20)
         }
@@ -236,8 +197,34 @@ struct ExerciseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// 信息行：仿拉伸页「小标签在上、数值在下」的 VStack 布局，天然不裁切；
-    /// 每行铺满卡片宽度并左对齐，避免内容缩小导致整卡偏左。
+    // MARK: - 子视图
+
+    private var infoCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            infoRow("英文名", exercise.en)
+            infoRow("目标肌群", exercise.muscles)
+            infoRow("器械", exercise.equipment)
+            infoRow("建议", "\(exercise.sets) 组 × \(exercise.repRange) 次")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 14))
+    }
+
+    private var breathingCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("呼吸方法", systemImage: "wind")
+                .font(.headline)
+            Text(exercise.breathing)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.cyan.opacity(0.1), in: .rect(cornerRadius: 14))
+    }
+
+    /// 信息行：标签在上、数值在下，铺满卡片宽度并左对齐（不裁切、不偏左）
     private func infoRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label)
@@ -249,16 +236,50 @@ struct ExerciseDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func blockView(_ title: String, icon: String,
-                           @ViewBuilder content: () -> some View) -> some View {
+    /// 通用卡片容器：全宽、左对齐
+    private func card<Content: View>(
+        _ title: String, icon: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(title, systemImage: icon)
                 .font(.headline)
             content()
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
         .background(.regularMaterial, in: .rect(cornerRadius: 14))
+    }
+
+    /// 编号列表（动作步骤）
+    private func numberedCard(_ title: String, icon: String, items: [String]) -> some View {
+        card(title, icon: icon) {
+            ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+                HStack(alignment: .top, spacing: 10) {
+                    Text("\(i + 1)")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white)
+                        .frame(width: 22, height: 22)
+                        .background(Color.blue, in: .circle)
+                    Text(item)
+                        .font(.subheadline)
+                }
+            }
+        }
+    }
+
+    /// 带前缀符号的列表（要领 ✅ / 错误 ❌）
+    private func bulletCard(_ title: String, icon: String, items: [String], prefix: String) -> some View {
+        card(title, icon: icon) {
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 10) {
+                    Text(prefix)
+                        .font(.caption)
+                    Text(item)
+                        .font(.subheadline)
+                }
+            }
+        }
     }
 }
 
