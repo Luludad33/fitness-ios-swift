@@ -127,43 +127,23 @@ struct ExerciseRow: View {
 
 // MARK: - 详情页头图（动图 → 静态图 → 占位符）
 
-/// 头图：宽度铺满屏幕实际可用宽度，高度由 `.aspectRatio` 按图片原生宽高比自动算出，
-/// 兼容任意屏幕尺寸（小屏 / 大屏 / 横屏 / iPad），并用 `.frame(maxHeight:)` 给竖版图封顶。
-/// 保证图片完整显示——不被裁切，竖版图也不会缩得过小。
+/// 头图：固定高度 + `.frame(maxWidth: .infinity)` 强制铺满屏幕实际可用宽度，
+/// 绝不因 GIF 原生尺寸（如 480×270）比屏宽而撑开/溢出页面（否则整页会居中往左偏、左边被裁）。
 struct DetailHeaderView: View {
     let gifName: String?       // bundle 内动图名（= 动作 id），无动图传 nil
     let imageName: String?     // Assets 静态图名，无图传 nil
     let placeholderIcon: String
 
-    /// 竖版图最大高度封顶，避免占满整屏
-    private static let maxHeight: CGFloat = 360
-
-    /// 图片原生尺寸（动图取第一帧；静态图取 UIImage 尺寸）
-    private var contentSize: CGSize? {
-        if let gifName, let s = gifPixelSize(named: gifName) {
-            return s
-        }
-        if let imageName, let ui = UIImage(named: imageName) {
-            return ui.size
-        }
-        return nil
-    }
-
     var body: some View {
         Group {
-            if let size = contentSize, size.width > 0, size.height > 0 {
-                Group {
-                    if let gifName, gifPixelSize(named: gifName) != nil {
-                        GIFView(gifName: gifName)
-                    } else {
-                        Image(imageName ?? "")
-                            .resizable()
-                            .scaledToFit()
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                // 按原生宽高比自适应：宽度=屏幕实际可用宽，高度=宽/比，自动适配任何屏幕
-                .aspectRatio(size.width / size.height, contentMode: .fit)
+            if let gifName, bundleHasGIF(named: gifName) {
+                GIFView(gifName: gifName)
+                    .frame(height: 220)
+            } else if let imageName, UIImage(named: imageName) != nil {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 220)
             } else {
                 // 无图占位符
                 ZStack {
@@ -172,11 +152,10 @@ struct DetailHeaderView: View {
                         .font(.system(size: 64))
                         .foregroundColor(.blue)
                 }
-                .frame(maxWidth: .infinity)
                 .frame(height: 180)
             }
         }
-        .frame(maxHeight: Self.maxHeight)
+        .frame(maxWidth: .infinity)
         .clipShape(.rect(cornerRadius: 16))
     }
 }
@@ -257,7 +236,8 @@ struct ExerciseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// 信息行：仿拉伸页「小标签在上、数值在下」的 VStack 布局，天然不裁切
+    /// 信息行：仿拉伸页「小标签在上、数值在下」的 VStack 布局，天然不裁切；
+    /// 每行铺满卡片宽度并左对齐，避免内容缩小导致整卡偏左。
     private func infoRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label)
@@ -266,6 +246,7 @@ struct ExerciseDetailView: View {
             Text(value)
                 .font(.subheadline)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func blockView(_ title: String, icon: String,
