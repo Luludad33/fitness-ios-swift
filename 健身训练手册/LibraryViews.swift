@@ -262,9 +262,12 @@ struct ExerciseDetailView: View {
             Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.secondary)
-                .frame(width: 76, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)   // 标签放不下时缩小而不是裁切/换行
             Text(value)
                 .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)   // 值占满剩余空间并自动换行
         }
     }
 
