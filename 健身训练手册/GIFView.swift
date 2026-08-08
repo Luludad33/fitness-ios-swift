@@ -7,6 +7,19 @@ func bundleHasGIF(named name: String) -> Bool {
     Bundle.main.url(forResource: name, withExtension: "gif") != nil
 }
 
+/// 读取 bundle 内 `<name>.gif` 第一帧的像素尺寸，用于详情页头图按原生宽高比自适应高度（避免竖版图显示过小）。
+func gifPixelSize(named name: String) -> CGSize? {
+    guard let url = Bundle.main.url(forResource: name, withExtension: "gif"),
+          let data = try? Data(contentsOf: url),
+          let source = CGImageSourceCreateWithData(data as CFData, nil),
+          let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let w = props[kCGImagePropertyPixelWidth] as? Double,
+          let h = props[kCGImagePropertyPixelHeight] as? Double else {
+        return nil
+    }
+    return CGSize(width: w, height: h)
+}
+
 /// GIF 播放视图：从 bundle 读取 `<gifName>.gif`，解码成帧后用 UIImageView 帧动画循环播放。
 /// 用 UIImageView.animationImages（而非手写定时器），播放最稳、最省电。
 struct GIFView: UIViewRepresentable {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit  // 头图自适应高度用到 UIImage
 
 // MARK: - 图鉴 Tab
 
@@ -113,7 +114,7 @@ struct ExerciseRow: View {
                 Text(exercise.muscles)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
             Spacer()
             Text("\(exercise.sets)×\(exercise.repRange)")
@@ -121,6 +122,62 @@ struct ExerciseRow: View {
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - 详情页头图（动图 → 静态图 → 占位符）
+
+/// 头图：宽度铺满屏幕实际可用宽度，高度由 `.aspectRatio` 按图片原生宽高比自动算出，
+/// 兼容任意屏幕尺寸（小屏 / 大屏 / 横屏 / iPad），并用 `.frame(maxHeight:)` 给竖版图封顶。
+/// 保证图片完整显示——不被裁切，竖版图也不会缩得过小。
+struct DetailHeaderView: View {
+    let gifName: String?       // bundle 内动图名（= 动作 id），无动图传 nil
+    let imageName: String?     // Assets 静态图名，无图传 nil
+    let placeholderIcon: String
+
+    /// 竖版图最大高度封顶，避免占满整屏
+    private static let maxHeight: CGFloat = 360
+
+    /// 图片原生尺寸（动图取第一帧；静态图取 UIImage 尺寸）
+    private var contentSize: CGSize? {
+        if let gifName, let s = gifPixelSize(named: gifName) {
+            return s
+        }
+        if let imageName, let ui = UIImage(named: imageName) {
+            return ui.size
+        }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let size = contentSize, size.width > 0, size.height > 0 {
+                Group {
+                    if let gifName, gifPixelSize(named: gifName) != nil {
+                        GIFView(gifName: gifName)
+                    } else {
+                        Image(imageName ?? "")
+                            .resizable()
+                            .scaledToFit()
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                // 按原生宽高比自适应：宽度=屏幕实际可用宽，高度=宽/比，自动适配任何屏幕
+                .aspectRatio(size.width / size.height, contentMode: .fit)
+            } else {
+                // 无图占位符
+                ZStack {
+                    Color.blue.opacity(0.1)
+                    Image(systemName: placeholderIcon)
+                        .font(.system(size: 64))
+                        .foregroundColor(.blue)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+            }
+        }
+        .frame(maxHeight: Self.maxHeight)
+        .clipShape(.rect(cornerRadius: 16))
     }
 }
 
@@ -132,27 +189,12 @@ struct ExerciseDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // 头图（有动图播动图，否则静态图，再无则占位符）
-                Group {
-                    if bundleHasGIF(named: exercise.id) {
-                        GIFView(gifName: exercise.id)
-                            .frame(height: 220)
-                    } else if let imageName = exercise.imageName {
-                        Image(imageName)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        ZStack {
-                            Color.blue.opacity(0.1)
-                            Image(systemName: "figure.strengthtraining.traditional")
-                                .font(.system(size: 64))
-                                .foregroundColor(.blue)
-                        }
-                        .frame(height: 180)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .clipShape(.rect(cornerRadius: 16))
+                // 头图（有动图播动图，否则静态图，再无则占位符）；按原生宽高比自适应高度，完整显示不裁切
+                DetailHeaderView(
+                    gifName: bundleHasGIF(named: exercise.id) ? exercise.id : nil,
+                    imageName: exercise.imageName,
+                    placeholderIcon: "figure.strengthtraining.traditional"
+                )
 
                 // 基本信息
                 VStack(alignment: .leading, spacing: 8) {
@@ -264,11 +306,13 @@ struct StretchDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if bundleHasGIF(named: stretch.id) {
-                    GIFView(gifName: stretch.id)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 200)
-                        .clipShape(.rect(cornerRadius: 16))
+                // 头图：有动图播动图，否则显示静态图（新替换的拉伸图为静态 PNG）
+                if bundleHasGIF(named: stretch.id) || UIImage(named: stretch.id) != nil {
+                    DetailHeaderView(
+                        gifName: bundleHasGIF(named: stretch.id) ? stretch.id : nil,
+                        imageName: stretch.id,
+                        placeholderIcon: "figure.flexibility"
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
