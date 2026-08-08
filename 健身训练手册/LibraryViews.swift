@@ -196,8 +196,8 @@ struct ExerciseDetailView: View {
                     placeholderIcon: "figure.strengthtraining.traditional"
                 )
 
-                // 基本信息
-                VStack(alignment: .leading, spacing: 8) {
+                // 基本信息（每行：小标签在上、数值在下，仿拉伸页布局避免裁切）
+                VStack(alignment: .leading, spacing: 12) {
                     infoRow("🇬🇧 英文名", exercise.en)
                     infoRow("🎯 目标肌群", exercise.muscles)
                     infoRow("🏋️ 器械", exercise.equipment)
@@ -257,17 +257,14 @@ struct ExerciseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// 信息行：仿拉伸页「小标签在上、数值在下」的 VStack 布局，天然不裁切
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.secondary)
-                // fixedSize 让标签按真实宽度整行完整显示，永不裁切/换行/缩放变样
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(minWidth: 100, alignment: .leading)   // 至少 100pt，保证各行列对齐
             Text(value)
                 .font(.subheadline)
-                .frame(maxWidth: .infinity, alignment: .leading)   // 值占满剩余空间并自动换行
         }
     }
 
