@@ -258,13 +258,13 @@ struct ExerciseDetailView: View {
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
             Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.secondary)
-                .frame(width: 100, alignment: .leading)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)   // 标签放不下时缩小而不是裁切/换行
+                // fixedSize 让标签按真实宽度整行完整显示，永不裁切/换行/缩放变样
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 100, alignment: .leading)   // 至少 100pt，保证各行列对齐
             Text(value)
                 .font(.subheadline)
                 .frame(maxWidth: .infinity, alignment: .leading)   // 值占满剩余空间并自动换行
