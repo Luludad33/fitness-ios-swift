@@ -29,9 +29,22 @@ struct GIFView: UIViewRepresentable {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
         imageView.backgroundColor = .clear
+        // Allow SwiftUI to shrink the GIF to the container width instead of
+        // keeping the GIF's original pixel width and overflowing the screen.
+        imageView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        imageView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         context.coordinator.loadedName = gifName
         loadFrames(into: imageView)
         return imageView
+    }
+
+    /// Fit the container width so the GIF never overflows the screen.
+    /// Without this, UIImageView keeps the GIF's intrinsic pixel size and
+    /// the whole page gets pushed off-center, clipping the left side.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        let height = proposal.height ?? 220
+        return CGSize(width: width, height: height)
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
