@@ -1,6 +1,48 @@
 import SwiftUI
 import UIKit  // 头图自适应高度用到 UIImage
 
+/// Full-screen viewer for the header image (static or animated).
+struct FullImageView: View {
+    let gifName: String?
+    let imageName: String?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            content
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundColor(.white.opacity(0.9))
+                    .background(.black.opacity(0.4), in: .circle)
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let gifName, bundleHasGIF(named: gifName) {
+            GIFView(gifName: gifName)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let imageName, UIImage(named: imageName) != nil {
+            Image(imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Image(systemName: "photo")
+                .font(.system(size: 60))
+                .foregroundColor(.white.opacity(0.5))
+        }
+    }
+}
+
 // MARK: - 图鉴 Tab
 
 struct LibraryView: View {
@@ -133,6 +175,7 @@ struct DetailHeaderView: View {
     let gifName: String?       // bundle 内动图名（= 动作 id），无动图传 nil
     let imageName: String?     // Assets 静态图名，无图传 nil
     let placeholderIcon: String
+    @State private var showFullImage = false
 
     var body: some View {
         Group {
@@ -142,8 +185,10 @@ struct DetailHeaderView: View {
             } else if let imageName, UIImage(named: imageName) != nil {
                 Image(imageName)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
                     .frame(height: 220)
+                    .clipped()
             } else {
                 // 无图占位符
                 ZStack {
@@ -157,6 +202,10 @@ struct DetailHeaderView: View {
         }
         .frame(maxWidth: .infinity)
         .clipShape(.rect(cornerRadius: 16))
+        .onTapGesture { showFullImage = true }
+        .fullScreenCover(isPresented: $showFullImage) {
+            FullImageView(gifName: gifName, imageName: imageName)
+        }
     }
 }
 
