@@ -28,8 +28,10 @@ struct FullImageView: View {
     @ViewBuilder
     private var content: some View {
         if let gifName, bundleHasGIF(named: gifName) {
-            GIFView(gifName: gifName)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { geo in
+                GIFView(gifName: gifName)
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
         } else if let imageName, UIImage(named: imageName) != nil {
             Image(imageName)
                 .resizable()
@@ -180,7 +182,9 @@ struct DetailHeaderView: View {
     var body: some View {
         Group {
             if let gifName, bundleHasGIF(named: gifName) {
-                GIFView(gifName: gifName)
+                GIFView(gifName: gifName) {
+                    showFullImage = true
+                }
                     .frame(height: 220)
             } else if let imageName, UIImage(named: imageName) != nil {
                 Image(imageName)

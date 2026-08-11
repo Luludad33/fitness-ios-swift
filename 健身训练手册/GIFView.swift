@@ -24,11 +24,19 @@ func gifPixelSize(named name: String) -> CGSize? {
 /// 用 UIImageView.animationImages（而非手写定时器），播放最稳、最省电。
 struct GIFView: UIViewRepresentable {
     let gifName: String
+    var onTap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> UIImageView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
         imageView.backgroundColor = .clear
+        // UIImageView itself intercepts SwiftUI gestures, so handle taps
+        // natively inside the component and forward them to SwiftUI.
+        imageView.isUserInteractionEnabled = true
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap))
+        tap.numberOfTapsRequired = 1
+        imageView.addGestureRecognizer(tap)
+        context.coordinator.onTap = onTap
         // Allow SwiftUI to shrink the GIF to the container width instead of
         // keeping the GIF's original pixel width and overflowing the screen.
         imageView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -48,17 +56,31 @@ struct GIFView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
+        context.coordinator.onTap = onTap
         // 名字变化时重新加载（本项目每个 GIFView 名字固定，通常不会触发）
         if context.coordinator.loadedName != gifName {
             context.coordinator.loadedName = gifName
             loadFrames(into: uiView)
+        } else if !uiView.isAnimating, uiView.animationImages != nil {
+            // 动画意外停止（例如全屏切换）时自动恢复播放
+            uiView.startAnimating()
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(onTap: onTap) }
 
-    final class Coordinator {
+    final class Coordinator: NSObject {
         var loadedName: String?
+        var onTap: (() -> Void)?
+
+        init(onTap: (() -> Void)? = nil) {
+            self.onTap = onTap
+            super.init()
+        }
+
+        @objc func handleTap() {
+            onTap?()
+        }
     }
 
     private func loadFrames(into imageView: UIImageView) {
