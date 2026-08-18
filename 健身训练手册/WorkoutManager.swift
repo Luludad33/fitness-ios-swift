@@ -9,7 +9,7 @@ import UIKit
 class WorkoutManager: ObservableObject {
 
     enum Phase: String, Codable {
-        case idle, exercising, resting, finished
+        case idle, exercising, resting, finished, paused
     }
 
     // MARK: - Published state
@@ -24,6 +24,7 @@ class WorkoutManager: ObservableObject {
     @Published var darkMode = false { didSet { defaults.set(darkMode, forKey: "fitDarkMode") } }
     @Published var lastRecord: DayRecord?        // 最近一次完成的记录（庆祝页用）
     @Published var sessionStart: Date?
+    private var pausedRestRemaining: TimeInterval = 0  // 暂停时保存的剩余休息秒数
 
     // MARK: - 身体数据与设置（数据 Tab / 我的 Tab 用）
 
@@ -113,7 +114,7 @@ class WorkoutManager: ObservableObject {
             if phase == .resting {
                 stopTicking()          // 休息结束靠已排程的本地通知提醒
                 saveSession()
-            } else if phase == .exercising {
+            } else if phase == .exercising || phase == .paused {
                 saveSession()
             }
         case .inactive:
@@ -136,6 +137,7 @@ class WorkoutManager: ObservableObject {
         phase = .exercising
         sessionStart = Date()
         lastRecord = nil
+        pausedRestRemaining = 0
         saveSession()
         updateLiveActivity()
     }
@@ -144,11 +146,12 @@ class WorkoutManager: ObservableObject {
     func completeSet(reps: Int, weightKg: Double?) {
         guard phase == .exercising, let day = currentDay, let exercise = currentExercise else { return }
 
-        // 记录本组
-        if logs.isEmpty || logs[logs.count - 1].exerciseId != exercise.id {
-            logs.append(ExerciseLog(exerciseId: exercise.id, sets: []))
+        // 记录本组（按 exerciseId 查重，跳转过动作也不产生重复条目）
+        if let idx = logs.firstIndex(where: { $0.exerciseId == exercise.id }) {
+            logs[idx].sets.append(SetLog(weightKg: weightKg, reps: reps))
+        } else {
+            logs.append(ExerciseLog(exerciseId: exercise.id, sets: [SetLog(weightKg: weightKg, reps: reps)]))
         }
-        logs[logs.count - 1].sets.append(SetLog(weightKg: weightKg, reps: reps))
 
         let isLastSetOfExercise = setNumber >= exercise.sets
         let isLastExercise = exerciseIndex >= day.exerciseIds.count - 1
@@ -185,6 +188,64 @@ class WorkoutManager: ObservableObject {
     func updateRestSeconds(_ val: Int) {
         restSeconds = max(15, min(300, val))
         defaults.set(restSeconds, forKey: "fitRestSeconds")
+    }
+
+    // MARK: - 暂停 / 跳动作 / 提前结束
+
+    /// 暂时离开训练（保存 session、冻结休息倒计时，回主页稍后再继续）
+    func pauseWorkout() {
+        guard phase == .exercising || phase == .resting else { return }
+        stopTicking()
+        cancelWorkoutNotifications()
+        if phase == .resting, let deadline {
+            pausedRestRemaining = max(0, deadline.timeIntervalSince(Date()))
+            self.deadline = nil
+        }
+        phase = .paused
+        saveSession()
+        updateLiveActivity()
+    }
+
+    /// 从暂停恢复训练（保留剩余休息秒数）
+    func resumeWorkout() {
+        guard phase == .paused else { return }
+        if pausedRestRemaining > 0 {
+            deadline = Date().addingTimeInterval(pausedRestRemaining)
+            timeRemaining = pausedRestRemaining
+            phase = .resting
+            pausedRestRemaining = 0
+            startTicking()
+            scheduleRestEndNotification()
+        } else {
+            phase = .exercising
+        }
+        saveSession()
+        updateLiveActivity()
+    }
+
+    /// 跳到当天任意动作（可从休息态调用，休息会被取消），跳到该动作第 1 组
+    func selectWorkout(at index: Int) {
+        guard let day = currentDay, index >= 0, index < day.exercises.count else { return }
+        stopTicking()
+        cancelWorkoutNotifications()
+        exerciseIndex = index
+        setNumber = 1
+        let targetId = day.exercises[index].id
+        if logs.firstIndex(where: { $0.exerciseId == targetId }) == nil {
+            logs.append(ExerciseLog(exerciseId: targetId, sets: []))
+        }
+        phase = .exercising
+        saveSession()
+        updateLiveActivity()
+    }
+
+    /// 练到一半不想练了：保存已完成部分为一条训练记录；一组都没练则等同放弃
+    func saveAndFinishEarly() {
+        if completedSets == 0 {
+            abandonWorkout()
+        } else {
+            finishWorkout()
+        }
     }
 
     // MARK: - 身体数据（体重 / 围度）
@@ -286,7 +347,8 @@ class WorkoutManager: ObservableObject {
             // 下一动作第一组
             exerciseIndex += 1
             setNumber = 1
-            if let next = currentExercise {
+            if let next = currentExercise,
+               logs.firstIndex(where: { $0.exerciseId == next.id }) == nil {
                 logs.append(ExerciseLog(exerciseId: next.id, sets: []))
             }
         }
@@ -296,7 +358,7 @@ class WorkoutManager: ObservableObject {
         updateLiveActivity()
     }
 
-    private func finishWorkout() {
+    func finishWorkout() {
         stopTicking()
         cancelWorkoutNotifications()
         let record = DayRecord(
@@ -406,6 +468,11 @@ class WorkoutManager: ObservableObject {
         if let data = try? JSONEncoder().encode(logs) {
             defaults.set(data, forKey: "fit_logs")
         }
+        if pausedRestRemaining > 0 {
+            defaults.set(pausedRestRemaining, forKey: "fit_pausedRest")
+        } else {
+            defaults.removeObject(forKey: "fit_pausedRest")
+        }
     }
 
     private func loadSession() {
@@ -428,6 +495,7 @@ class WorkoutManager: ObservableObject {
            let savedLogs = try? JSONDecoder().decode([ExerciseLog].self, from: data) {
             logs = savedLogs
         }
+        pausedRestRemaining = defaults.double(forKey: "fit_pausedRest")
         // 防御：索引越界则收敛到合法范围
         if let day = currentDay, exerciseIndex >= day.exerciseIds.count {
             exerciseIndex = day.exerciseIds.count - 1
@@ -450,7 +518,7 @@ class WorkoutManager: ObservableObject {
 
     private func clearSession() {
         ["fit_phase", "fit_dayId", "fit_exerciseIndex", "fit_setNumber",
-         "fit_deadline", "fit_sessionStart", "fit_logs"]
+         "fit_deadline", "fit_sessionStart", "fit_logs", "fit_pausedRest"]
             .forEach { defaults.removeObject(forKey: $0) }
     }
 
@@ -495,6 +563,18 @@ class WorkoutManager: ObservableObject {
             all.append(contentsOf: list)
         }
         return all.sorted { $0.startTime > $1.startTime }
+    }
+
+    /// 删除某条训练记录（同日多条按 id 区分；删空后清掉当天 key）
+    func deleteRecord(_ record: DayRecord) {
+        let key = "fit_records_\(record.date)"
+        var list = Self.records(on: record.date, defaults: defaults)
+        list.removeAll { $0.id == record.id }
+        if list.isEmpty {
+            defaults.removeObject(forKey: key)
+        } else if let data = try? JSONEncoder().encode(list) {
+            defaults.set(data, forKey: key)
+        }
     }
 
     // MARK: - 统计（连续天数 / 本周 / PR / 容量）
@@ -568,23 +648,15 @@ class WorkoutManager: ObservableObject {
         .sorted { Self.epley($0.weightKg, $0.reps) > Self.epley($1.weightKg, $1.reps) }
     }
 
-    /// 某动作历史最佳组（Epley 分数最高），训练录入时预填重量
-    func bestSet(for exerciseId: String) -> SetLog? {
-        var best: SetLog?
-        var bestScore: Double = 0
-        for rec in allRecords() {
-            for entry in rec.entries where entry.exerciseId == exerciseId {
-                for set in entry.sets {
-                    guard let w = set.weightKg, w > 0 else { continue }
-                    let score = Self.epley(w, set.reps)
-                    if score > bestScore {
-                        bestScore = score
-                        best = set
-                    }
-                }
+    /// 某动作最近一次记录的组（重量 > 0），训练录入时预填重量
+    func lastSet(for exerciseId: String) -> SetLog? {
+        for record in allRecords() {                 // 已按 startTime 降序
+            guard let entry = record.entries.first(where: { $0.exerciseId == exerciseId }) else { continue }
+            for set in entry.sets.reversed() {
+                if let w = set.weightKg, w > 0 { return set }
             }
         }
-        return best
+        return nil
     }
 
     /// 训练总容量（Σ 重量×次数）

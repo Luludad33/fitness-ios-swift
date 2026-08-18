@@ -39,6 +39,27 @@ struct ContentView: View {
             if wm.phase == .resting {
                 RestOverlayView()
             }
+
+            // 训练暂停悬浮条：可回 Tab 浏览其他内容，随时点「继续训练」回来
+            if wm.phase == .paused {
+                HStack(spacing: 12) {
+                    Text("训练已暂停")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("继续训练") { wm.resumeWorkout() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    Button("保存并结束") { wm.saveAndFinishEarly() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                .padding()
+                .background(.regularMaterial, in: .rect(cornerRadius: 16))
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .animation(.easeOut(duration: 0.25), value: wm.phase)
         .preferredColorScheme(wm.darkMode ? .dark : .light)

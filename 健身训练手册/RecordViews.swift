@@ -6,9 +6,16 @@ struct RecordsView: View {
     @EnvironmentObject var wm: WorkoutManager
     @State private var records: [DayRecord] = []
 
-    /// 本周统计
+    /// 本周统计（自然周，周一算起，与主页 weekCount 对齐）
     private var weekRecords: [DayRecord] {
-        WorkoutManager.recentRecords(days: 7)
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: Date())   // 1=周日 … 7=周六
+        let daysSinceMonday = (weekday + 5) % 7               // 周一=0
+        guard let monday = cal.date(byAdding: .day, value: -daysSinceMonday, to: Date()) else { return [] }
+        let mondayStr = fmt.string(from: monday)
+        return wm.allRecords().filter { $0.date >= mondayStr }
     }
 
     var body: some View {
@@ -45,6 +52,12 @@ struct RecordsView: View {
                     Section("最近 30 天") {
                         ForEach(records.sorted { $0.startTime > $1.startTime }) { record in
                             RecordRow(record: record)
+                                .swipeActions(edge: .trailing) {
+                                    Button("删除", role: .destructive) {
+                                        wm.deleteRecord(record)
+                                        refresh()
+                                    }
+                                }
                         }
                     }
                 }

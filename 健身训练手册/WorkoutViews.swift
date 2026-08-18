@@ -275,6 +275,25 @@ struct WorkoutFlowView: View {
                         Text("\(day.emoji) \(day.name)")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
+                        // 跳转动作菜单：点任意动作直接从第 1 组开始（跳过中间也不丢已做组数）
+                        Menu {
+                            ForEach(Array(day.exercises.enumerated()), id: \.offset) { i, ex in
+                                Button {
+                                    withAnimation { wm.selectWorkout(at: i) }
+                                } label: {
+                                    HStack {
+                                        Text(ex.name)
+                                        Spacer()
+                                        if i == wm.exerciseIndex {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .foregroundColor(.secondary)
+                        }
                         Menu {
                             Picker("组间休息", selection: Binding(
                                 get: { wm.restSeconds },
@@ -291,6 +310,13 @@ struct WorkoutFlowView: View {
                             }
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        }
+                        Button {
+                            wm.pauseWorkout()
+                        } label: {
+                            Image(systemName: "pause.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(.secondary)
                         }
                     }
 
@@ -430,9 +456,12 @@ struct WorkoutFlowView: View {
         .onChange(of: wm.setNumber) { _, _ in
             if let ex = wm.currentExercise { resetInputs(for: ex) }
         }
-        .confirmationDialog("放弃本次训练？", isPresented: $showAbandonConfirm, titleVisibility: .visible) {
+        .confirmationDialog("退出训练？", isPresented: $showAbandonConfirm, titleVisibility: .visible) {
+            Button("继续训练", role: .cancel) {}
+            if wm.completedSets > 0 {
+                Button("保存并结束") { wm.saveAndFinishEarly() }
+            }
             Button("放弃训练", role: .destructive) { wm.abandonWorkout() }
-            Button("继续练", role: .cancel) {}
         }
         .sheet(isPresented: $showExerciseDetail) {
             ExerciseDetailSheet(exercise: exercise)
@@ -486,8 +515,8 @@ struct WorkoutFlowView: View {
         let nums = Self.numbers(in: exercise.repRange)
         let def = nums.isEmpty ? 10 : nums.reduce(0, +) / nums.count
         repsText = String(def)
-        // 用历史最佳组（Epley 分数最高）预填重量
-        if let best = wm.bestSet(for: exercise.id), let w = best.weightKg {
+        // 用最近一次记录的重量预填（不是历史最佳）
+        if let last = wm.lastSet(for: exercise.id), let w = last.weightKg {
             weightText = DataView.fmt(w)
         } else {
             weightText = ""
@@ -568,7 +597,13 @@ struct RestOverlayView: View {
                         .buttonStyle(.bordered)
                         .tint(.orange)
 
-                        if let ex = wm.currentExercise {
+                        Button("暂停") {
+                            wm.pauseWorkout()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.secondary)
+
+                        if let ex = restDisplayExercise {
                             Button {
                                 showDetail = true
                             } label: {
@@ -579,6 +614,29 @@ struct RestOverlayView: View {
                             .tint(.blue)
                         }
                     }
+
+                    // 跳转动作：休息中也能换，跳到该动作第 1 组
+                    Menu {
+                        if let day = wm.currentDay {
+                            ForEach(Array(day.exercises.enumerated()), id: \.offset) { i, ex in
+                                Button {
+                                    withAnimation { wm.selectWorkout(at: i) }
+                                } label: {
+                                    HStack {
+                                        Text(ex.name)
+                                        Spacer()
+                                        if i == wm.exerciseIndex {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("跳至动作", systemImage: "arrow.left.arrow.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
                 }
                 .padding(28)
                 .frame(maxWidth: 310)
@@ -594,10 +652,17 @@ struct RestOverlayView: View {
                 }
             }
             .sheet(isPresented: $showDetail) {
-                if let ex = wm.currentExercise {
+                if let ex = restDisplayExercise {
                     ExerciseDetailSheet(exercise: ex)
                 }
             }
+    }
+
+    /// 休息期间展示的动作：本动作最后一组完成 → 下一个动作；否则当前动作
+    private var restDisplayExercise: Exercise? {
+        guard let ex = wm.currentExercise else { return nil }
+        if wm.setNumber >= ex.sets { return wm.nextExercise ?? ex }
+        return ex
     }
 
     private var nextUpText: String? {
