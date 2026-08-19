@@ -597,12 +597,6 @@ struct RestOverlayView: View {
                         .buttonStyle(.bordered)
                         .tint(.orange)
 
-                        Button("暂停") {
-                            wm.pauseWorkout()
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.secondary)
-
                         if let ex = restDisplayExercise {
                             Button {
                                 showDetail = true
@@ -614,29 +608,6 @@ struct RestOverlayView: View {
                             .tint(.blue)
                         }
                     }
-
-                    // 跳转动作：休息中也能换，跳到该动作第 1 组
-                    Menu {
-                        if let day = wm.currentDay {
-                            ForEach(Array(day.exercises.enumerated()), id: \.offset) { i, ex in
-                                Button {
-                                    withAnimation { wm.selectWorkout(at: i) }
-                                } label: {
-                                    HStack {
-                                        Text(ex.name)
-                                        Spacer()
-                                        if i == wm.exerciseIndex {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Label("跳至动作", systemImage: "arrow.left.arrow.right")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.blue)
                 }
                 .padding(28)
                 .frame(maxWidth: 310)
